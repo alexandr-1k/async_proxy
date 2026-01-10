@@ -1,0 +1,47 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "GCC: Build Debug",
+            "type": "shell",
+            "command": [
+                "mkdir ${workspaceFolder}/build ; ",
+                "cd ${workspaceFolder}/build &&",
+                "cmake .. -DCMAKE_BUILD_TYPE=Debug && cmake --build ."
+            ],
+            "presentation": {
+                "clear": true
+            },
+            "hide": false,
+            "group": {
+                "kind": "build"
+            }
+        },
+        {
+            "label": "GCC: Build Release",
+            "type": "shell",
+            "command": [
+                "mkdir ${workspaceFolder}/build ; ",
+                "cd ${workspaceFolder}/build &&",
+                "cmake .. -DCMAKE_BUILD_TYPE=Release && cmake --build ."
+            ],
+            "presentation": {
+                "clear": true
+            },
+            "hide": false,
+            "group": {
+                "kind": "build"
+            }
+        },
+        {
+            "label": "start-test-server",
+            "type": "shell",
+            "command": "python3 -c 'print(\"HTTP/1.1 200 OK\\r\\nContent-Type: text/html\\r\\nContent-Length: 4096\\r\\n\\r\\n\" + \"A\"*4096, end=\"\")' | nc -l 127.0.0.1 -p 8000"
+        },
+        {
+            "label": "run-wget",
+            "type": "shell",
+            "command": "wget -e use_proxy=yes -e http_proxy=127.0.0.1:5555 127.0.0.1:8000"
+        }
+    ]
+}
