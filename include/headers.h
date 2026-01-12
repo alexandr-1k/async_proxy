@@ -1,13 +1,22 @@
 #pragma once
 
-#include <string>
+#include <expected>
 #include <functional>
 #include <optional>
+#include <string>
 
 using Callback = std::function<void(std::string_view, std::string_view)>;
+enum class HeaderError {
+    missing,
+    parse_error,
+    out_of_range,
+};
+using ContentLengthResponse = std::expected<std::optional<size_t>, HeaderError>;
+using HostPortPair = std::pair<std::string, std::string>;
+using HostResponse = std::expected<HostPortPair, HeaderError>;
 
-void iterHeaders(std::string_view req, Callback&& callback);
+void iterHeaders(std::string_view req, Callback &&callback);
 
-std::pair<std::string, std::string> findHostPort(std::string_view req);
+HostResponse findHostPort(std::string_view req);
 
-std::optional<size_t> findContentLength(std::string_view rsp);
+ContentLengthResponse findContentLength(std::string_view rsp);

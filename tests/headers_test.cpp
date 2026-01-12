@@ -90,9 +90,9 @@ TEST(findHostPort, Simple) {
                                "Host: example.com:8080\r\n"
                                "\r\n";
 
-    auto [host, port] = findHostPort(request);
-    EXPECT_EQ(host, "example.com");
-    EXPECT_EQ(port, "8080");
+    auto val = findHostPort(request);
+    EXPECT_EQ(val->first, "example.com");
+    EXPECT_EQ(val->second, "8080");
 }
 
 TEST(findHostPort, NoHost) {
@@ -100,9 +100,26 @@ TEST(findHostPort, NoHost) {
                                "User-Agent: TestAgent\r\n"
                                "\r\n";
 
-    auto [host, port] = findHostPort(request);
-    EXPECT_EQ(host, "");
-    EXPECT_EQ(port, "80");
+    auto val = findHostPort(request);
+    EXPECT_FALSE(val.has_value());
+}
+
+TEST(findHostPort, HasKeyButNoValue) {
+    std::string_view request = "GET / HTTP/1.1\r\n"
+                               "Host: \r\n"
+                               "\r\n";
+
+    auto val = findHostPort(request);
+    EXPECT_FALSE(val.has_value());
+}
+
+TEST(findHostPort, InvalidPort) {
+    std::string_view request = "GET / HTTP/1.1\r\n"
+                               "Host: site.com:99999\r\n"
+                               "\r\n";
+
+    auto val = findHostPort(request);
+    EXPECT_FALSE(val.has_value());
 }
 
 TEST(findContentLength, Simple) {
@@ -112,7 +129,7 @@ TEST(findContentLength, Simple) {
 
     auto content_length = findContentLength(response);
     ASSERT_TRUE(content_length.has_value());
-    EXPECT_EQ(content_length.value(), 4321);
+    EXPECT_EQ(content_length->value(), 4321);
 }
 
 TEST(findContentLength, NoContentLength) {
@@ -121,5 +138,23 @@ TEST(findContentLength, NoContentLength) {
                                 "\r\n";
 
     auto content_length = findContentLength(response);
-    EXPECT_FALSE(content_length.has_value());
+    EXPECT_EQ(content_length->value(), 0);
+}
+
+TEST(findContentLength, HasKeyButNoValue) {
+    std::string_view request = "GET / HTTP/1.1\r\n"
+                               "Content-Length: \r\n"
+                               "\r\n";
+
+    auto val = findContentLength(request);
+    EXPECT_FALSE(val.has_value());
+}
+
+TEST(findContentLength, LengthIsTooBig) {
+    std::string_view request = "GET / HTTP/1.1\r\n"
+                               "Content-Length: 1000000000\r\n"
+                               "\r\n";
+
+    auto val = findContentLength(request);
+    EXPECT_FALSE(val.has_value());
 }

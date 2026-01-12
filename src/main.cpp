@@ -34,6 +34,7 @@ using boost::asio::ip::tcp;
 using boost::system::error_code;
 
 constexpr std::string_view delimiter = "\r\n\r\n";
+constexpr auto forward_size = 8192;
 
 class SocketHandle {
     static size_t socket_handle_id_counter_;
@@ -100,11 +101,14 @@ awaitable<void> session(std::shared_ptr<SocketHandle> client_sock_handle, io_ser
                                boost::asio::buffers_begin(bufs) + static_cast<std::ptrdiff_t>(req_header_bytes));
             }
 
-            auto [host, port] = findHostPort(req_str);
-            if (host.empty()) {
-                std::print(std::cerr, "[{}] No Host header found in request\n", client_sock_handle->get_id());
+            auto val = findHostPort(req_str);
+            if (!val) {
+                std::print(std::cerr, "{} Invalid or missing host header found in request\n",
+                           client_sock_handle->get_info_str());
                 co_return;
             }
+            auto &host = val->first;
+            auto &port = val->second;
 
             // client -> server: resolve/connect server
             auto server_socket = co_await resolve_remote_host(io_service, host, port, slot);
@@ -136,9 +140,15 @@ awaitable<void> session(std::shared_ptr<SocketHandle> client_sock_handle, io_ser
             }
 
             // find content length if present
-            auto content_length_opt = findContentLength(resp_str);
+            auto content_length_exp = findContentLength(resp_str);
+            if (!content_length_exp) {
+                std::print(std::cerr, "{} Server responded with invalid Content-Length header\n",
+                           server_socket_handle->get_info_str());
+                co_return;
+            }
+            auto content_length_opt = *content_length_exp;
 
-            if (!content_length_opt) {
+            if (!content_length_opt || *content_length_opt == 0) {
                 // No Content-Length -> then it's 2 options:
                 // 1.Transfer-Encoding: chunked, need to read chunk by chunk,
                 // 2.or server will close connection to signal end-of-body.
@@ -149,7 +159,7 @@ awaitable<void> session(std::shared_ptr<SocketHandle> client_sock_handle, io_ser
 
                     // now forward until server closes (read some / write some)
                     for (;;) {
-                        std::array<char, 8192> temp;
+                        std::array<char, forward_size> temp;
                         std::size_t n = co_await server_socket_handle->get_socket().async_read_some(
                             boost::asio::buffer(temp), stop_binder);
                         if (n == 0)
@@ -167,8 +177,8 @@ awaitable<void> session(std::shared_ptr<SocketHandle> client_sock_handle, io_ser
                 co_return;
             }
 
-            // content-length present => calculate how many body bytes already in buffer (after header)
             size_t content_length = *content_length_opt;
+            // content-length present => calculate how many body bytes already in buffer (after header)
             std::size_t body_already = buffer.size() - resp_header_bytes;
             if (content_length > body_already) {
                 std::size_t remaining = content_length - body_already;
